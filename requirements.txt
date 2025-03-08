@@ -1,0 +1,12 @@
+Flask
+flask-cors
+gunicorn
+requests
+pandas
+numpy
+email-validator
+bcrypt
+PyJWT
+openpyxl
+mysql.connector
+python-dotenv
