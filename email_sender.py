@@ -236,8 +236,9 @@ def send_welcome_email(email, name, password):
         - Email: {email}
         - Password: {password}
 
-        Please log in to your account and change your password after your first login.
-
+        Please log in to your account and change your password after your first login here.
+        https://arrow-mmglobus.onrender.com
+        
         Best regards,
         The Admin Team
         """
