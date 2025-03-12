@@ -1,5 +1,3 @@
-# Load AI model for email content generation
-# generator = pipeline("text-generation", model="gpt2")
 import os
 import re
 import pandas as pd
@@ -23,14 +21,13 @@ from io import BytesIO
 from flask import Response, session
 import numpy as np
 from pathlib import Path
-#from transformers import pipeline
 import mysql.connector
 from dotenv import load_dotenv
-
 import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
 import os
+
 
 # Load environment variables
 load_dotenv()
@@ -969,7 +966,7 @@ def login():
     token = jwt.encode({
         'user_id': user['id'],
         'email': user['email'],
-        'exp': datetime.utcnow() + timedelta(hours=24)  # Token expires in 24 hours
+        'exp': datetime.now(timezone.utc) + timedelta(hours=24)  # Token expires in 24 hours
     }, JWT_SECRET, algorithm="HS256")
     
     return jsonify({
@@ -1140,7 +1137,122 @@ def create_admin():
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error creating admin user: {str(e)}'}), 500
+    
+def send_reset_email(email, reset_link):
+    """Send Reset Email."""
+    try:
+        subject = "Reset Your Spark Account Password"
+        body = f"""
+        Click the link below to reset your password:
+        {reset_link}
+        
+        If you didn't request a password reset, please ignore this email.
+        """
+
+        # Create email message
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_USER
+        msg['To'] = email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        print(f"Sending email to {email} via {SMTP_SERVER}:{SMTP_PORT}")
+
+        # Connect to SMTP server
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.set_debuglevel(1)  # Enable debugging
+            server.starttls()  # Secure connection
+            server.login(EMAIL_USER, EMAIL_PASSWORD)
+            server.send_message(msg)
+
+        print(f"Reset email successfully sent to {email}")
+
+    except smtplib.SMTPAuthenticationError:
+        print("SMTP Authentication Error: Check email/password credentials.")
+    except smtplib.SMTPConnectError:
+        print("Failed to connect to the SMTP server. Check the server and port settings.")
+    except smtplib.SMTPException as e:
+        print(f"SMTP Error: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+
+def get_user_by_email(email):
+    """Fetch user by email from MySQL database."""
+    email = email.strip().lower()  # Ensure no spaces and lowercase
+    conn = connect_db()
+    cursor = conn.cursor(dictionary=True)
+
+    print(f"Searching for email: {email}")  # Debugging
+
+    cursor.execute("SELECT * FROM usersSpark WHERE LOWER(email) = LOWER(%s)", (email,))
+    user = cursor.fetchone()
+
+    print(f"User found: {user}")  # Debugging
+
+    conn.close()
+    return user
+
+
+
+@app.route('/api/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.json
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'success': False, 'message': 'Email is required'}), 400
+
+    user = get_user_by_email(email)  # Fetch user from database
+    if not user:
+        return jsonify({'success': False, 'message': 'This email is not registered'}), 404
+
+    # Generate password reset token (valid for 1 hour)
+    reset_token = jwt.encode(
+        {'user_id': user['id'], 'exp': datetime.now(timezone.utc) + timedelta(hours=1)},
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+
+    reset_link = f"http://localhost:5000/reset-password?token={reset_token}"
+    print(f"Generated Reset Link: {reset_link}")
+
+    send_reset_email(email, reset_link)
+
+    return jsonify({'success': True, 'message': 'Reset link sent to your email'}), 200
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data = request.json
+    token = data.get('token')
+    new_password = data.get('new_password')
+
+    if not token or not new_password:
+        return jsonify({'success': False, 'message': 'Invalid request'}), 400
+
+    try:
+        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        user_id = decoded['user_id']
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'message': 'Token expired'}), 400
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'message': 'Invalid token'}), 400
+
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usersSpark SET password = %s WHERE id = %s", (hash_password(new_password), user_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True, 'message': 'Password reset successfully'}), 200
+
+@app.route('/forgot-password')
+def forgot_password_page():
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template('reset_password.html')
+
 
 if __name__ == '__main__':
-
     app.run(debug=True)
