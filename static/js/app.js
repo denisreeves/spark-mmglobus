@@ -111,7 +111,23 @@ document.getElementById('statistics-tab-btn')?.addEventListener('click', functio
 // Setup login page functionality
 function setupLoginPage() {
     // Handle Login
+    function showLoader(button) {
+        button.disabled = true; // Disable button to prevent multiple clicks
+        button.innerHTML = '<div class="loader"></div> Processing...'; // Show loader text
+    }
+
+    // Function to hide loader
+    function hideLoader(button, originalText) {
+        button.disabled = false;
+        button.innerHTML = originalText; // Restore original button text
+    }
+
+    // Handle Login
     document.getElementById('login-button')?.addEventListener('click', async function () {
+        const button = this;
+        const originalText = button.innerHTML;
+        showLoader(button);
+
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
         const errorElement = document.getElementById('login-error');
@@ -122,6 +138,7 @@ function setupLoginPage() {
 
         if (!email || !password) {
             errorElement.textContent = 'Please enter both email and password';
+            hideLoader(button, originalText);
             return;
         }
 
@@ -135,7 +152,6 @@ function setupLoginPage() {
             const result = await response.json();
             if (result.success) {
                 successElement.textContent = 'Login successful! Redirecting...';
-
                 localStorage.setItem(
                     'user',
                     JSON.stringify({
@@ -146,24 +162,20 @@ function setupLoginPage() {
                     })
                 );
 
-                // In the login success handling, after localStorage.setItem:
-                if (result.isAdmin) {
-                    setTimeout(() => {
-                        window.location.href = '/admin';
-                    }, 1500);
-                } else {
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 1500);
-                }
+                setTimeout(() => {
+                    window.location.href = result.isAdmin ? '/admin' : '/';
+                }, 1500);
             } else {
                 errorElement.textContent = result.message || 'Invalid credentials';
             }
         } catch (error) {
             console.error('Error during login:', error);
             errorElement.textContent = 'An error occurred. Please try again.';
+        } finally {
+            hideLoader(button, originalText);
         }
     });
+
 
     // Handle Registration
     document.getElementById('register-button')?.addEventListener('click', async function () {
@@ -400,3 +412,4 @@ function displayEmailList(emails) {
         emailListElement.appendChild(emailItem);
     });
 }
+
