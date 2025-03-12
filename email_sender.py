@@ -1212,8 +1212,8 @@ def forgot_password():
         JWT_SECRET,
         algorithm="HS256"
     )
-
-    reset_link = f"http://localhost:5000/reset-password?token={reset_token}"
+    domain = request.host
+    reset_link = f"http://{domain}/reset-password?token={reset_token}"
     print(f"Generated Reset Link: {reset_link}")
 
     send_reset_email(email, reset_link)
